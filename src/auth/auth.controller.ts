@@ -4,18 +4,20 @@ import { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+    constructor(private readonly authService: AuthService) { }
 
-  @Get('google/url')
-  getGoogleUrl() {
-    const url = this.authService.getAuthURL();
-    return { url };
-  }
+    @Get('google')
+    async redirectToGoogle(@Res() res: Response) {
+        const url = this.authService.getAuthURL();
+        return res.redirect(url);
+    }
 
-  @Get('google/callback')
-  async googleCallback(@Query('code') code: string, @Res() res: Response) {
-    const tokens = await this.authService.handleGoogleCallback(code);
-    console.log('Received Tokens:', tokens);
-    return res.redirect('http://localhost:3000/dashboard');
-  }
+    @Get('google/callback')
+    async handleGoogleCallback(@Query('code') code: string) {
+        const result = await this.authService.handleGoogleCallback(code);
+        return {
+            message: 'Google OAuth successful',
+            data: result,
+        };
+    }
 }

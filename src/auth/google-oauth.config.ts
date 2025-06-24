@@ -1,18 +1,23 @@
+// src/auth/google-oauth.config.ts
 import { google } from 'googleapis';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
-export const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
+const oauth2Client = new google.auth.OAuth2({
+  clientId: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  redirectUri: process.env.GOOGLE_REDIRECT_URI, 
+});
 
-export const getGoogleAuthURL = () => {
-  const scopes = ['https://www.googleapis.com/auth/webmasters.readonly'];
+export const GSC_SCOPES = [
+  'https://www.googleapis.com/auth/webmasters.readonly',
+];
 
+export const getAuthUrl = (): string => {
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
+    scope: GSC_SCOPES,
     prompt: 'consent',
-    scope: scopes,
   });
 };
 
@@ -20,3 +25,9 @@ export const getTokensFromCode = async (code: string) => {
   const { tokens } = await oauth2Client.getToken(code);
   return tokens;
 };
+
+export const setOAuthCredentials = (tokens: any) => {
+  oauth2Client.setCredentials(tokens);
+};
+
+export default oauth2Client;
