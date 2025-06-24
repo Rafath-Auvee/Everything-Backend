@@ -1,15 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { GscToken } from './gsc.schema';
 import { google } from 'googleapis';
-import oauth2Client, { setOAuthCredentials } from '../auth/google-oauth.config';
 
 @Injectable()
 export class GscService {
   constructor(
     @InjectModel(GscToken.name) private gscModel: Model<GscToken>,
-  ) {}
+  ) { }
 
   async saveOrUpdateTokens(email: string, tokens: any) {
     return this.gscModel.findOneAndUpdate(
@@ -24,14 +23,45 @@ export class GscService {
     );
   }
 
+  // Unified client getter with token refresh logic
+  private async getValidOAuth2Client(record: GscToken) {
+    const oauth2Client = new google.auth.OAuth2({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI,
+    });
+
+    oauth2Client.setCredentials({
+      access_token: record.accessToken,
+      refresh_token: record.refreshToken,
+    });
+
+    // Token expiry check and refresh
+    if (record.expiryDate && record.expiryDate < Date.now()) {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      await this.gscModel.findOneAndUpdate(
+        { email: record.email },
+        {
+          accessToken: credentials.access_token,
+          expiryDate: credentials.expiry_date,
+          refreshToken: credentials.refresh_token || record.refreshToken,
+        },
+        { new: true }
+      );
+      oauth2Client.setCredentials({
+        access_token: credentials.access_token,
+        refresh_token: credentials.refresh_token || record.refreshToken,
+      });
+    }
+
+    return oauth2Client;
+  }
+
   async getVerifiedSites(email: string): Promise<string[]> {
     const record = await this.gscModel.findOne({ email });
     if (!record) throw new NotFoundException('User GSC token not found');
 
-    setOAuthCredentials({
-      access_token: record.accessToken,
-      refresh_token: record.refreshToken,
-    });
+    const oauth2Client = await this.getValidOAuth2Client(record);
 
     const webmasters = google.webmasters({ version: 'v3', auth: oauth2Client });
     const { data } = await webmasters.sites.list();
@@ -43,6 +73,13 @@ export class GscService {
   }
 
   async saveSelectedSite(email: string, siteUrl: string) {
+
+
+    const verifiedSites = await this.getVerifiedSites(email);
+    if (!verifiedSites.includes(siteUrl)) {
+      throw new BadRequestException('Site is not verified for this user');
+    }
+
     const updated = await this.gscModel.findOneAndUpdate(
       { email },
       { selectedSite: siteUrl },
@@ -62,12 +99,10 @@ export class GscService {
       throw new NotFoundException('No selected site for user');
     }
 
-    setOAuthCredentials({
-      access_token: record.accessToken,
-      refresh_token: record.refreshToken,
-    });
+    const oauth2Client = await this.getValidOAuth2Client(record);
 
     const webmasters = google.webmasters({ version: 'v3', auth: oauth2Client });
+
     const request = {
       siteUrl: record.selectedSite,
       requestBody: {

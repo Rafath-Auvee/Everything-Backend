@@ -13,11 +13,10 @@ export class AuthController {
     }
 
     @Get('google/callback')
-    async handleGoogleCallback(@Query('code') code: string) {
+    async googleCallback(@Query('code') code: string, @Res() res: Response) {
+        console.log('🔁 Received code from Google:', code);
         const result = await this.authService.handleGoogleCallback(code);
-        return {
-            message: 'Google OAuth successful',
-            data: result,
-        };
+        const email = result.email;
+        return res.redirect(`${process.env.FRONTEND_URL}/?email=${email}`);
     }
 }

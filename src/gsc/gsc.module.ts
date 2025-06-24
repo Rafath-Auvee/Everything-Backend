@@ -8,7 +8,8 @@ import { GscController } from './gsc.controller';
   imports: [
     MongooseModule.forFeature([{ name: GscToken.name, schema: GscTokenSchema }]),
   ],
-  controllers: [GscController],
   providers: [GscService],
+  controllers: [GscController],
+  exports: [GscService], 
 })
 export class GscModule {}

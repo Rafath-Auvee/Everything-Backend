@@ -1,9 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-@Schema({ timestamps: true })
+@Schema()
 export class GscToken extends Document {
-  @Prop({ required: true })
+  @Prop({ required: true, unique: true })
   email: string;
 
   @Prop()
@@ -16,7 +16,7 @@ export class GscToken extends Document {
   expiryDate: number;
 
   @Prop()
-  selectedSite: string;
+  selectedSite?: string;
 }
 
 export const GscTokenSchema = SchemaFactory.createForClass(GscToken);

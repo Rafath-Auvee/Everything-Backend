@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { getAuthUrl, getTokensFromCode, setOAuthCredentials, default as oauth2Client } from './google-oauth.config';
+import { getAuthUrl, getTokensFromCode } from './google-oauth.config';
 import { google } from 'googleapis';
 import { UserService } from '../user/user.service';
+import { GscService } from 'src/gsc/gsc.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly gscService: GscService,
+  ) { }
 
   getAuthURL(): string {
     return getAuthUrl();
@@ -13,8 +17,23 @@ export class AuthService {
 
   async handleGoogleCallback(code: string) {
     const tokens = await getTokensFromCode(code);
-    setOAuthCredentials(tokens); 
-    
+
+    console.log("🔑 Received tokens from Google:", tokens);
+
+    if (!tokens.access_token) {
+      throw new Error('Failed to retrieve access token from Google');
+    }
+
+    const oauth2Client = new google.auth.OAuth2({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI,
+    });
+
+    oauth2Client.setCredentials(tokens);
+
+    console.log("📦 Final Access Token set:", oauth2Client.credentials.access_token);
+
     const oauth2 = google.oauth2({
       version: 'v2',
       auth: oauth2Client,
@@ -22,14 +41,15 @@ export class AuthService {
 
     const { data: userInfo } = await oauth2.userinfo.get();
 
-    const email = userInfo.email;
+    console.log("Access Token:", oauth2Client.credentials.access_token);
 
+    const email = userInfo.email;
     if (!email) {
       throw new Error('Unable to fetch user email from Google');
     }
 
-    // Store user and tokens in DB
     await this.userService.saveOrUpdateUser(email, tokens);
+    await this.gscService.saveOrUpdateTokens(email, tokens);
 
     return { email, tokens };
   }
