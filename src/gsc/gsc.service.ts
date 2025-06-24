@@ -23,7 +23,7 @@ export class GscService {
     );
   }
 
-  // Unified client getter with token refresh logic
+ 
   private async getValidOAuth2Client(record: GscToken) {
     const oauth2Client = new google.auth.OAuth2({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -36,7 +36,7 @@ export class GscService {
       refresh_token: record.refreshToken,
     });
 
-    // Token expiry check and refresh
+
     if (record.expiryDate && record.expiryDate < Date.now()) {
       const { credentials } = await oauth2Client.refreshAccessToken();
       await this.gscModel.findOneAndUpdate(
